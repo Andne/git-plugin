@@ -1383,26 +1383,35 @@ public class GitSCM extends GitSCMBackwardCompatibility {
             Config repoConfig = new Config();
             // Make up a repo config from the request parameters
 
-            String[] names = repoNames;
-
-            names = GitUtils.fixupNames(names, urls);
-
-            for (int i = 0; i < names.length; i++) {
+            for (int i = 0; i < urls.length; i++) {
                 String url = urls[i];
                 if (url == null) {
                     continue;
                 }
-                String name = names[i];
+                
+                String name = repoNames[i];
                 name = name.replace(' ', '_');
 
                 if (isBlank(refs[i])) {
                     refs[i] = "+refs/heads/*:refs/remotes/" + name + "/*";
                 }
-
-                repoConfig.setString("remote", name, "url", url);
-                repoConfig.setStringList("remote", name, "fetch", new ArrayList<String>(Arrays.asList(refs[i].split("\\s+"))));
+                
+                String setUrl = repoConfig.getString("remote", name, "url");
+                if (setUrl == null) {
+                    repoConfig.setString("remote", name, "url", url);
+                    repoConfig.setStringList("remote", name, "fetch", new ArrayList<String>(Arrays.asList(refs[i].split("\\s+"))));
+                }
+                else if (!setUrl.equals(url)) {
+                    // Same name but different url? How? Ignore it I think
+                }
+                else {
+                    String[] refSpecs = repoConfig.getStringList("remote", name, "fetch");
+                    String[] newRefSpecs = new String[refSpecs.length + 1];
+                    newRefSpecs[refSpecs.length] = refs[i];
+                    repoConfig.setStringList("remote", name, "fetch", new ArrayList<String>(Arrays.asList(newRefSpecs)));
+                }
             }
-
+            
             try {
                 remoteRepositories = RemoteConfig.getAllRemoteConfigs(repoConfig);
             } catch (Exception e) {
